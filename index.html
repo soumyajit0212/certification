@@ -227,66 +227,78 @@
     const closeResumeBtnEl = document.getElementById('closeResumeBtn');
     let pendingResumeState = null;
 
-    // Handle uncaught promise rejections (suppress noisy extension errors)
-    window.addEventListener('unhandledrejection', (ev) => {
-      // Log for debugging but prevent default console noise
-      console.warn('Unhandled promise rejection suppressed:', ev.reason);
-      try { ev.preventDefault(); } catch(e){}
-    });
-
     function startTimer(){ if(timerInterval) clearInterval(timerInterval); timerInterval = setInterval(()=>{ seconds++; updateTimer(); saveState(); },1000); }
     function stopTimer(){ if(timerInterval) clearInterval(timerInterval); timerInterval = null; }
     function updateTimer(){ const mm=String(Math.floor(seconds/60)).padStart(2,'0'); const ss=String(seconds%60).padStart(2,'0'); timerEl.textContent=mm+':'+ss; }
 
-    pauseBtn.addEventListener('click', ()=>{
+    pauseBtn.addEventListener('click', (e)=>{
+      e.stopPropagation();
       paused=!paused;
       if(paused){ stopTimer(); pauseBtn.textContent='Resume'; }
       else { startTimer(); pauseBtn.textContent='Pause'; }
     });
 
-    clearBtn.addEventListener('click', ()=>{
+    clearBtn.addEventListener('click', (e)=>{
+      e.stopPropagation();
       if(confirm('Clear all progress and start over?')){
         clearState();
         location.reload();
       }
     });
 
-    // Modal control helpers (attach listeners once)
+    // Modal control helpers - simplified and extension-resistant
     function openResumeModal(state){
       pendingResumeState = state;
       const answeredCount = state.responses.filter(r => !r.skipped).length;
       const totalCount = state.responses.length;
       resumeTextEl.textContent = `You have previous progress saved at Question ${state.idx + 1}. You've answered ${answeredCount}/${totalCount} questions.`;
       resumeModalEl.classList.remove('hidden');
-      document.addEventListener('keydown', handleEscapeKey);
     }
 
     function closeResumeModal(){
       resumeModalEl.classList.add('hidden');
       pendingResumeState = null;
-      document.removeEventListener('keydown', handleEscapeKey);
     }
 
-    function handleResumeClick(){
+    function handleResumeClick(e){
+      e.preventDefault();
+      e.stopPropagation();
       if(!pendingResumeState) return;
+      const state = pendingResumeState;
       closeResumeModal();
-      startQuiz(pendingResumeState);
+      startQuiz(state);
     }
 
-    function handleStartFreshClick(){
+    function handleStartFreshClick(e){
+      e.preventDefault();
+      e.stopPropagation();
       closeResumeModal();
       clearState();
       startQuiz();
     }
 
-    function handleEscapeKey(e){ if(e.key === 'Escape') handleStartFreshClick(); }
+    // Attach modal listeners with explicit event control
+    resumeBtnEl.addEventListener('click', handleResumeClick, true);
+    startFreshBtnEl.addEventListener('click', handleStartFreshClick, true);
+    if(closeResumeBtnEl) closeResumeBtnEl.addEventListener('click', handleStartFreshClick, true);
 
-    // Attach modal listeners once
-    resumeBtnEl.addEventListener('click', handleResumeClick);
-    startFreshBtnEl.addEventListener('click', handleStartFreshClick);
-    if(closeResumeBtnEl) closeResumeBtnEl.addEventListener('click', closeResumeModal);
-    // Click overlay to start fresh
-    resumeModalEl.addEventListener('click', (e)=>{ if(e.target === resumeModalEl) handleStartFreshClick(); });
+    // Overlay click handling
+    resumeModalEl.addEventListener('click', (e)=>{
+      if(e.target === resumeModalEl){
+        e.preventDefault();
+        e.stopPropagation();
+        handleStartFreshClick(e);
+      }
+    }, true);
+
+    // Keyboard escape handling
+    document.addEventListener('keydown', (e)=>{
+      if(e.key === 'Escape' && !resumeModalEl.classList.contains('hidden')){
+        e.preventDefault();
+        e.stopPropagation();
+        handleStartFreshClick(e);
+      }
+    }, true);
 
     // ── Render a question ──────────────────────────────────────────────────
     function showQuestion(i){
