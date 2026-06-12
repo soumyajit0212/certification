@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GCP Generative AI Leader — MCQ Exam</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;max-width:900px;margin:24px auto;padding:0 16px;color:#111}
+    header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+    .timer{font-weight:600}
+    .question{margin-top:18px;padding:16px;border:1px solid #eee;border-radius:8px}
+    .options{margin-top:12px}
+    .option{display:block;margin:6px 0}
+    .controls{margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .hidden{display:none}
+    .correct{color:green;font-weight:700}
+    .wrong{color:#b31;font-weight:700}
+    footer{margin-top:18px;color:#666;font-size:13px}
+    button{padding:8px 12px;border-radius:6px;border:1px solid #ccc;background:#f7f7f7;cursor:pointer}
+    button:hover{background:#ececec}
+    .explanation{margin-top:8px;padding:10px;background:#f9f9f9;border-radius:6px;border-left:4px solid #ddd}
+
+    /* ── Skip-to-question bar ── */
+    .skip-bar{
+      display:flex;align-items:center;gap:6px;
+      margin-top:10px;padding:8px 12px;
+      background:#f0f4ff;border:1px solid #c7d4f5;border-radius:8px;
+      flex-wrap:wrap;
+    }
+    .skip-bar label{font-size:13px;font-weight:600;color:#334}
+    .skip-bar input[type=number]{
+      width:72px;padding:5px 8px;border:1px solid #aab;border-radius:5px;font-size:14px;
+    }
+    .skip-bar button{
+      background:#3b5bdb;color:#fff;border:none;padding:6px 14px;border-radius:5px;font-size:13px;font-weight:600;
+    }
+    .skip-bar button:hover{background:#2f4ac2}
+    .skip-bar .skip-hint{font-size:12px;color:#667;margin-left:4px}
+
+    /* skipped badge shown in progress line */
+    .skipped-badge{
+      display:inline-block;margin-left:12px;
+      font-size:11px;padding:2px 7px;border-radius:10px;
+      background:#fff3cd;color:#856404;border:1px solid #ffc107;
+      vertical-align:middle;
+    }
+
+    /* Modal styles */
+    .modal-overlay{
+      position:fixed;top:0;left:0;right:0;bottom:0;
+      background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;
+      z-index:1000;
+    }
+    .modal{
+      background:#fff;padding:24px;border-radius:8px;max-width:400px;
+      box-shadow:0 4px 16px rgba(0,0,0,0.2);
+    }
+    .modal h2{margin-top:0}
+    .modal p{color:#666;line-height:1.6}
+    .modal-buttons{display:flex;gap:12px;margin-top:20px;justify-content:flex-end;flex-wrap:wrap}
+    .modal-buttons button{padding:8px 16px}
+    .modal-buttons button.primary{background:#3b5bdb;color:#fff;border:none;font-weight:600}
+    .modal-buttons button.primary:hover{background:#2f4ac2}
+
+    /* Clear progress button in header */
+    .header-actions{display:flex;gap:8px;align-items:center}
+    .clear-btn{background:#ffebee;color:#b31;border-color:#ffcdd2;padding:6px 10px;font-size:12px}
+    .clear-btn:hover{background:#ffcdd2}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>GCP Generative AI Leader — MCQ Exam</h1>
+    <div class="header-actions">
+      <span class="timer" id="timer">00:00</span>
+      <button id="pauseBtn">Pause</button>
+      <button id="clearBtn" class="clear-btn hidden" title="Clear all progress and start fresh">Clear</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="loading">Loading questions…</div>
+
+    <!-- Resume Modal -->
+    <div id="resumeModal" class="modal-overlay hidden">
+      <div class="modal">
+        <h2>Resume Quiz?</h2>
+        <p id="resumeText">You have previous progress saved.</p>
+        <div class="modal-buttons">
+          <button id="resumeBtn" class="primary">Resume</button>
+          <button id="startFreshBtn">Start Fresh</button>
+        </div>
+      </div>
+    </div>
+    <div id="quiz" class="hidden">
+      <div id="progress"></div>
+
+      <!-- ── Skip bar ── -->
+      <div class="skip-bar">
+        <label for="skipInput">Go to Q#</label>
+        <input type="number" id="skipInput" min="1" placeholder="e.g. 30" />
+        <button id="skipBtn">Jump</button>
+        <span class="skip-hint">Skipped questions are left unanswered in your score.</span>
+      </div>
+
+      <div class="question" id="questionBox">
+        <div id="qText"></div>
+        <form id="optionsForm" class="options"></form>
+        <div class="explanation hidden" id="explanation"></div>
+      </div>
+      <div class="controls">
+        <button id="submitBtn">Submit Answer</button>
+        <button id="skipQBtn">Skip Question →</button>
+        <button id="nextBtn" class="hidden">Next</button>
+      </div>
+    </div>
+
+    <div id="results" class="hidden">
+      <h2>Results</h2>
+      <p id="scoreText"></p>
+      <p id="timeText"></p>
+      <button id="reviewBtn">Review Answers</button>
+      <div id="review" class="hidden"></div>
+    </div>
+  </main>
+
+  <footer>
+    - This page reads the five Markdown files in the same folder and runs the exam in your browser. Works on GitHub Pages.
+  </footer>
+
+  <script>
+  (function(){
+    const files = [
+      "GCP's Generative AI Leader MCQ Set 1.md",
+      "GCP's Generative AI Leader MCQ Set 2.md",
+      "GCP's Generative AI Leader MCQ Set 3.md",
+      "GCP's Generative AI Leader MCQ Set 4.md",
+      "GCP's Generative AI Leader MCQ Set 5.md"
+    ];
+
+    const qList = [];
+    const STORAGE_KEY = 'gcp_quiz_state';
+
+    // ── localStorage helpers ──────────────────────────────────────────────
+    function saveState(){
+      const state = {
+        idx, score, responses: Array.from(responses),
+        seconds, answered: Array.from(answered), timestamp: Date.now()
+      };
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) { console.warn('Failed to save state:', e); }
+    }
+
+    function loadState(){
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved) : null;
+      } catch(e) { console.warn('Failed to load state:', e); return null; }
+    }
+
+    function clearState(){
+      try { localStorage.removeItem(STORAGE_KEY); } catch(e) { console.warn('Failed to clear state:', e); }
+    }
+
+    // ── Markdown parsing ──────────────────────────────────────────────────
+    function parseMd(md){
+      const parts = md.split(/\n---\n/);
+      for(const part of parts){
+        const header = part.match(/##\s*(\d+)\.\s*(.+)/);
+        if(!header) continue;
+        const qnum = header[1];
+        const qtext = header[2].trim();
+        const options = {};
+        const optRegex = /^\*+\s*\*\*([A-Z])\)\s*(.*?)\*\*/gm;
+        let m;
+        while((m = optRegex.exec(part)) !== null){
+          options[m[1]] = m[2].trim();
+        }
+        const caLine = part.match(/\*\*Correct Answer:\s*([^\n\*]+)/i);
+        let answers = [];
+        if(caLine){
+          let raw = caLine[1].replace(/[\*]/g,'').replace(/and/gi,',').replace(/&/g,',');
+          const letters = raw.match(/[A-Z]/g);
+          if(letters) answers = letters;
+        }
+        const explLines = part.split('\n').filter(l=>l.trim().startsWith('>')).map(l=>l.replace(/^>\s*/,'').trim());
+        const explanation = explLines.join(' ');
+        qList.push({qnum, qtext, options, answers, explanation});
+      }
+    }
+
+    // ── File loading for GitHub Pages ──────────────────────────────────────
+    async function loadAll(){
+      const texts = await Promise.all(files.map(f => {
+        // Use a try-catch approach with multiple fetch strategies
+        return fetch(f)
+          .then(r => r.ok ? r.text() : Promise.resolve(''))
+          .catch(() => {
+            // Fallback: try with encodeURIComponent
+            return fetch(encodeURIComponent(f))
+              .then(r => r.ok ? r.text() : Promise.resolve(''))
+              .catch(() => Promise.resolve(''));
+          });
+      }));
+      texts.forEach(t=>{ if(t) parseMd(t); });
+    }
+
+    // Quiz state
+    let idx = 0;
+    let score = 0;
+    const responses = [];   // { idx, given, correct, skipped }
+    const answered = new Set();  // tracks which question indices have been dealt with
+
+    // Timer
+    let seconds = 0; let timerInterval = null; let paused = false;
+    const timerEl = document.getElementById('timer');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    function startTimer(){ if(timerInterval) clearInterval(timerInterval); timerInterval = setInterval(()=>{ seconds++; updateTimer(); saveState(); },1000); }
+    function stopTimer(){ if(timerInterval) clearInterval(timerInterval); timerInterval = null; }
+    function updateTimer(){ const mm=String(Math.floor(seconds/60)).padStart(2,'0'); const ss=String(seconds%60).padStart(2,'0'); timerEl.textContent=mm+':'+ss; }
+
+    pauseBtn.addEventListener('click', ()=>{
+      paused=!paused;
+      if(paused){ stopTimer(); pauseBtn.textContent='Resume'; }
+      else { startTimer(); pauseBtn.textContent='Pause'; }
+    });
+
+    clearBtn.addEventListener('click', ()=>{
+      if(confirm('Clear all progress and start over?')){
+        clearState();
+        location.reload();
+      }
+    });
+
+    // ── Render a question ──────────────────────────────────────────────────
+    function showQuestion(i){
+      idx = i;
+      const q = qList[i];
+      const skippedCount = responses.filter(r=>r.skipped).length;
+
+      let progressHTML = `Question ${i+1} of ${qList.length}`;
+      if(skippedCount > 0) progressHTML += `<span class="skipped-badge">⚡ ${skippedCount} skipped</span>`;
+      document.getElementById('progress').innerHTML = progressHTML;
+
+      // Update jump input max
+      document.getElementById('skipInput').max = qList.length;
+
+      document.getElementById('qText').innerHTML = `<strong>${q.qtext}</strong>`;
+      const form = document.getElementById('optionsForm'); form.innerHTML='';
+      const multi = q.answers && q.answers.length>1;
+      for(const letter of Object.keys(q.options)){
+        const wrapper = document.createElement('label'); wrapper.className='option';
+        const inp = document.createElement('input'); inp.type=multi?'checkbox':'radio'; inp.name='option'; inp.value=letter;
+        wrapper.appendChild(inp);
+        const span = document.createElement('span'); span.innerHTML=` <strong>${letter})</strong> ${q.options[letter]}`;
+        wrapper.appendChild(span);
+        form.appendChild(wrapper);
+      }
+      document.getElementById('explanation').classList.add('hidden');
+      document.getElementById('nextBtn').classList.add('hidden');
+      document.getElementById('submitBtn').classList.remove('hidden');
+      document.getElementById('skipQBtn').classList.remove('hidden');
+
+      // Hide skip button on the very last question (finish instead)
+      if(i === qList.length-1) document.getElementById('skipQBtn').classList.add('hidden');
+
+      saveState();
+    }
+
+    // ── Submit answer ──────────────────────────────────────────────────────
+    document.getElementById('submitBtn').addEventListener('click', (e)=>{
+      e.preventDefault();
+      if(answered.has(idx)) return;
+
+      const q = qList[idx];
+      const inputs = Array.from(document.querySelectorAll('#optionsForm input:checked')).map(i=>i.value);
+      if(inputs.length===0){ alert('Please select an answer (or use "Skip Question" to move on).'); return; }
+
+      answered.add(idx);
+      const correct = (q.answers||[]).slice().sort().join(',');
+      const given   = inputs.slice().sort().join(',');
+      const isCorrect = correct===given;
+      if(isCorrect){
+        score++;
+        document.getElementById('explanation').innerHTML=`<div class="correct">✓ Correct</div>`;
+      } else {
+        const correctText = q.answers.map(a=>`<strong>${a}</strong> ${q.options[a]||''}`).join('<br>');
+        const expl = q.explanation ? `<div><em>Explanation:</em> ${q.explanation}</div>` : '';
+        document.getElementById('explanation').innerHTML=`<div class="wrong">✗ Incorrect</div><div>Correct answer(s):<br>${correctText}</div>${expl}`;
+      }
+      document.getElementById('explanation').classList.remove('hidden');
+      responses.push({idx, given:inputs, correct:q.answers, skipped:false});
+      saveState();
+
+      document.getElementById('submitBtn').classList.add('hidden');
+      document.getElementById('skipQBtn').classList.add('hidden');
+      if(idx < qList.length-1) document.getElementById('nextBtn').classList.remove('hidden');
+      else finishQuiz();
+    });
+
+    // ── Skip current question ──────────────────────────────────────────────
+    document.getElementById('skipQBtn').addEventListener('click', ()=>{
+      if(!answered.has(idx)){
+        answered.add(idx);
+        responses.push({idx, given:[], correct:qList[idx].answers, skipped:true});
+        saveState();
+      }
+      if(idx < qList.length-1) showQuestion(idx+1);
+      else finishQuiz();
+    });
+
+    // ── Next button ────────────────────────────────────────────────────────
+    document.getElementById('nextBtn').addEventListener('click', ()=>{
+      showQuestion(idx+1);
+    });
+
+    // ── Jump to question number ────────────────────────────────────────────
+    document.getElementById('skipBtn').addEventListener('click', ()=>{
+      doJump();
+    });
+    document.getElementById('skipInput').addEventListener('keydown', (e)=>{
+      if(e.key==='Enter') doJump();
+    });
+
+    function doJump(){
+      const raw = parseInt(document.getElementById('skipInput').value, 10);
+      if(isNaN(raw) || raw < 1 || raw > qList.length){
+        alert(`Please enter a number between 1 and ${qList.length}.`);
+        return;
+      }
+      const target = raw - 1;  // convert to 0-based
+
+      // Mark every question between current and target as skipped if not yet answered
+      for(let i = idx; i < target; i++){
+        if(!answered.has(i)){
+          answered.add(i);
+          responses.push({idx:i, given:[], correct:qList[i].answers, skipped:true});
+        }
+      }
+      saveState();
+
+      document.getElementById('skipInput').value = '';
+      showQuestion(target);
+    }
+
+    // ── Finish ─────────────────────────────────────────────────────────────
+    function finishQuiz(){
+      stopTimer();
+      clearState();  // Clear saved state after quiz is finished
+      document.getElementById('quiz').classList.add('hidden');
+      document.getElementById('results').classList.remove('hidden');
+      clearBtn.classList.add('hidden');
+      const total    = qList.length;
+      const answered = responses.filter(r=>!r.skipped).length;
+      const skipped  = responses.filter(r=>r.skipped).length;
+      document.getElementById('scoreText').textContent =
+        `Score: ${score} / ${total} (${Math.round(score/total*100)}%)  —  Answered: ${answered}  |  Skipped: ${skipped}`;
+      document.getElementById('timeText').textContent = `Time: ${timerEl.textContent}`;
+    }
+
+    // ── Review ─────────────────────────────────────────────────────────────
+    document.getElementById('reviewBtn').addEventListener('click', ()=>{
+      const rev = document.getElementById('review'); rev.innerHTML=''; rev.classList.toggle('hidden');
+      if(rev.classList.contains('hidden')) return;
+      responses.forEach(r=>{
+        const q = qList[r.idx];
+        const div = document.createElement('div'); div.style.margin='12px 0';
+        if(r.skipped){
+          const correctText = q.answers.map(a=>`${a}) ${q.options[a]||''}`).join(', ');
+          div.innerHTML=`<strong>Q${r.idx+1}: ${q.qtext}</strong><div style="color:#856404">⚡ Skipped</div><div>Correct: ${correctText}</div>${q.explanation?`<div class="explanation">${q.explanation}</div>`:''}`;
+        } else {
+          const givenText   = r.given.map(a=>`${a}) ${q.options[a]||''}`).join(', ');
+          const correctText = q.answers.map(a=>`${a}) ${q.options[a]||''}`).join(', ');
+          div.innerHTML=`<strong>Q${r.idx+1}: ${q.qtext}</strong><div>Your answer: ${givenText}</div><div>Correct: ${correctText}</div>${q.explanation?`<div class="explanation">${q.explanation}</div>`:''}`;
+        }
+        rev.appendChild(div);
+      });
+    });
+
+    // ── Boot ───────────────────────────────────────────────────────────────
+    function startQuiz(resumeState = null){
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('quiz').classList.remove('hidden');
+      clearBtn.classList.remove('hidden');
+
+      if(resumeState){
+        // Restore state
+        idx = resumeState.idx;
+        score = resumeState.score;
+        seconds = resumeState.seconds;
+        responses.splice(0, responses.length, ...resumeState.responses);
+        resumeState.answered.forEach(a => answered.add(a));
+        updateTimer();
+      }
+
+      startTimer();
+      showQuestion(idx);
+    }
+
+    loadAll().then(()=>{
+      if(qList.length===0){ document.getElementById('loading').textContent='No questions found.'; return; }
+
+      const savedState = loadState();
+      if(savedState && Date.now() - savedState.timestamp < 7 * 24 * 60 * 60 * 1000){  // 7 days
+        // Show resume modal
+        const modal = document.getElementById('resumeModal');
+        const answeredCount = savedState.responses.filter(r => !r.skipped).length;
+        const totalCount = savedState.responses.length;
+        document.getElementById('resumeText').textContent =
+          `You have previous progress saved at Question ${savedState.idx + 1}. You've answered ${answeredCount}/${totalCount} questions.`;
+        modal.classList.remove('hidden');
+
+        document.getElementById('resumeBtn').addEventListener('click', () => {
+          modal.classList.add('hidden');
+          startQuiz(savedState);
+        });
+        document.getElementById('startFreshBtn').addEventListener('click', () => {
+          clearState();
+          modal.classList.add('hidden');
+          startQuiz();
+        });
+      } else {
+        startQuiz();
+      }
+    }).catch(err=>{ document.getElementById('loading').textContent='Failed to load questions.'; console.error(err); });
+
+  })();
+  </script>
+</body>
+</html>
