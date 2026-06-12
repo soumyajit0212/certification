@@ -55,6 +55,8 @@
       background:#fff;padding:24px;border-radius:8px;max-width:400px;
       box-shadow:0 4px 16px rgba(0,0,0,0.2);
     }
+    .modal .close-btn{position:absolute;right:12px;top:10px;border-radius:50%;width:30px;height:30px;line-height:1;background:transparent;border:1px solid #ddd}
+    .modal .close-btn:hover{background:#f3f3f3}
     .modal h2{margin-top:0}
     .modal p{color:#666;line-height:1.6}
     .modal-buttons{display:flex;gap:12px;margin-top:20px;justify-content:flex-end;flex-wrap:wrap}
@@ -83,8 +85,9 @@
 
     <!-- Resume Modal -->
     <div id="resumeModal" class="modal-overlay hidden">
-      <div class="modal">
-        <h2>Resume Quiz?</h2>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="resumeHeading">
+        <button id="closeResumeBtn" class="close-btn" title="Close">✕</button>
+        <h2 id="resumeHeading">Resume Quiz?</h2>
         <p id="resumeText">You have previous progress saved.</p>
         <div class="modal-buttons">
           <button id="resumeBtn" class="primary">Resume</button>
@@ -221,6 +224,7 @@
     const resumeTextEl = document.getElementById('resumeText');
     const resumeBtnEl = document.getElementById('resumeBtn');
     const startFreshBtnEl = document.getElementById('startFreshBtn');
+    const closeResumeBtnEl = document.getElementById('closeResumeBtn');
     let pendingResumeState = null;
 
     // Handle uncaught promise rejections (suppress noisy extension errors)
@@ -280,6 +284,7 @@
     // Attach modal listeners once
     resumeBtnEl.addEventListener('click', handleResumeClick);
     startFreshBtnEl.addEventListener('click', handleStartFreshClick);
+    if(closeResumeBtnEl) closeResumeBtnEl.addEventListener('click', closeResumeModal);
     // Click overlay to start fresh
     resumeModalEl.addEventListener('click', (e)=>{ if(e.target === resumeModalEl) handleStartFreshClick(); });
 
