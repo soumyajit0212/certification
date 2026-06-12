@@ -216,6 +216,20 @@
     const pauseBtn = document.getElementById('pauseBtn');
     const clearBtn = document.getElementById('clearBtn');
 
+    // Modal elements and resume state
+    const resumeModalEl = document.getElementById('resumeModal');
+    const resumeTextEl = document.getElementById('resumeText');
+    const resumeBtnEl = document.getElementById('resumeBtn');
+    const startFreshBtnEl = document.getElementById('startFreshBtn');
+    let pendingResumeState = null;
+
+    // Handle uncaught promise rejections (suppress noisy extension errors)
+    window.addEventListener('unhandledrejection', (ev) => {
+      // Log for debugging but prevent default console noise
+      console.warn('Unhandled promise rejection suppressed:', ev.reason);
+      try { ev.preventDefault(); } catch(e){}
+    });
+
     function startTimer(){ if(timerInterval) clearInterval(timerInterval); timerInterval = setInterval(()=>{ seconds++; updateTimer(); saveState(); },1000); }
     function stopTimer(){ if(timerInterval) clearInterval(timerInterval); timerInterval = null; }
     function updateTimer(){ const mm=String(Math.floor(seconds/60)).padStart(2,'0'); const ss=String(seconds%60).padStart(2,'0'); timerEl.textContent=mm+':'+ss; }
@@ -232,6 +246,42 @@
         location.reload();
       }
     });
+
+    // Modal control helpers (attach listeners once)
+    function openResumeModal(state){
+      pendingResumeState = state;
+      const answeredCount = state.responses.filter(r => !r.skipped).length;
+      const totalCount = state.responses.length;
+      resumeTextEl.textContent = `You have previous progress saved at Question ${state.idx + 1}. You've answered ${answeredCount}/${totalCount} questions.`;
+      resumeModalEl.classList.remove('hidden');
+      document.addEventListener('keydown', handleEscapeKey);
+    }
+
+    function closeResumeModal(){
+      resumeModalEl.classList.add('hidden');
+      pendingResumeState = null;
+      document.removeEventListener('keydown', handleEscapeKey);
+    }
+
+    function handleResumeClick(){
+      if(!pendingResumeState) return;
+      closeResumeModal();
+      startQuiz(pendingResumeState);
+    }
+
+    function handleStartFreshClick(){
+      closeResumeModal();
+      clearState();
+      startQuiz();
+    }
+
+    function handleEscapeKey(e){ if(e.key === 'Escape') handleStartFreshClick(); }
+
+    // Attach modal listeners once
+    resumeBtnEl.addEventListener('click', handleResumeClick);
+    startFreshBtnEl.addEventListener('click', handleStartFreshClick);
+    // Click overlay to start fresh
+    resumeModalEl.addEventListener('click', (e)=>{ if(e.target === resumeModalEl) handleStartFreshClick(); });
 
     // ── Render a question ──────────────────────────────────────────────────
     function showQuestion(i){
@@ -403,23 +453,8 @@
 
       const savedState = loadState();
       if(savedState && Date.now() - savedState.timestamp < 7 * 24 * 60 * 60 * 1000){  // 7 days
-        // Show resume modal
-        const modal = document.getElementById('resumeModal');
-        const answeredCount = savedState.responses.filter(r => !r.skipped).length;
-        const totalCount = savedState.responses.length;
-        document.getElementById('resumeText').textContent =
-          `You have previous progress saved at Question ${savedState.idx + 1}. You've answered ${answeredCount}/${totalCount} questions.`;
-        modal.classList.remove('hidden');
-
-        document.getElementById('resumeBtn').addEventListener('click', () => {
-          modal.classList.add('hidden');
-          startQuiz(savedState);
-        });
-        document.getElementById('startFreshBtn').addEventListener('click', () => {
-          clearState();
-          modal.classList.add('hidden');
-          startQuiz();
-        });
+        // Show resume modal using centralized handlers
+        openResumeModal(savedState);
       } else {
         startQuiz();
       }
