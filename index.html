@@ -45,6 +45,16 @@
       vertical-align:middle;
     }
 
+    /* Jump history */
+    #jumpHistory{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+    .hist-item{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;background:#f5f7ff;border:1px solid #e3e9ff;cursor:pointer}
+    .hist-item .dot{width:10px;height:10px;border-radius:50%}
+    .hist-answered{background:#e8f6ec;border-color:#d4efd6}
+    .hist-answered .dot{background:green}
+    .hist-skipped{background:#fff8e6;border-color:#ffe9b8}
+    .hist-skipped .dot{background:#f0b400}
+    .hist-current{background:#e7f0ff;border-color:#c8dcff;font-weight:700}
+
     /* Modal styles */
     .modal-overlay{
       position:fixed;top:0;left:0;right:0;bottom:0;
@@ -83,18 +93,7 @@
   <main>
     <div id="loading">Loading questions…</div>
 
-    <!-- Resume Modal -->
-    <div id="resumeModal" class="modal-overlay hidden">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="resumeHeading">
-        <button id="closeResumeBtn" class="close-btn" title="Close">✕</button>
-        <h2 id="resumeHeading">Resume Quiz?</h2>
-        <p id="resumeText">You have previous progress saved.</p>
-        <div class="modal-buttons">
-          <button id="resumeBtn" class="primary">Resume</button>
-          <button id="startFreshBtn">Start Fresh</button>
-        </div>
-      </div>
-    </div>
+    <!-- Resume modal removed to avoid blocking behavior on GitHub Pages. -->
     <div id="quiz" class="hidden">
       <div id="progress"></div>
 
@@ -104,6 +103,11 @@
         <input type="number" id="skipInput" min="1" placeholder="e.g. 30" />
         <button id="skipBtn">Jump</button>
         <span class="skip-hint">Skipped questions are left unanswered in your score.</span>
+      </div>
+
+      <!-- Jump history / progress indicator -->
+      <div id="jumpHistory" style="margin-top:10px;font-size:13px;color:#444">
+        <!-- populated by JS -->
       </div>
 
       <div class="question" id="questionBox">
@@ -219,14 +223,6 @@
     const pauseBtn = document.getElementById('pauseBtn');
     const clearBtn = document.getElementById('clearBtn');
 
-    // Modal elements and resume state
-    const resumeModalEl = document.getElementById('resumeModal');
-    const resumeTextEl = document.getElementById('resumeText');
-    const resumeBtnEl = document.getElementById('resumeBtn');
-    const startFreshBtnEl = document.getElementById('startFreshBtn');
-    const closeResumeBtnEl = document.getElementById('closeResumeBtn');
-    let pendingResumeState = null;
-
     function startTimer(){ if(timerInterval) clearInterval(timerInterval); timerInterval = setInterval(()=>{ seconds++; updateTimer(); saveState(); },1000); }
     function stopTimer(){ if(timerInterval) clearInterval(timerInterval); timerInterval = null; }
     function updateTimer(){ const mm=String(Math.floor(seconds/60)).padStart(2,'0'); const ss=String(seconds%60).padStart(2,'0'); timerEl.textContent=mm+':'+ss; }
@@ -246,59 +242,6 @@
       }
     });
 
-    // Modal control helpers - simplified and extension-resistant
-    function openResumeModal(state){
-      pendingResumeState = state;
-      const answeredCount = state.responses.filter(r => !r.skipped).length;
-      const totalCount = state.responses.length;
-      resumeTextEl.textContent = `You have previous progress saved at Question ${state.idx + 1}. You've answered ${answeredCount}/${totalCount} questions.`;
-      resumeModalEl.classList.remove('hidden');
-    }
-
-    function closeResumeModal(){
-      resumeModalEl.classList.add('hidden');
-      pendingResumeState = null;
-    }
-
-    function handleResumeClick(e){
-      e.preventDefault();
-      e.stopPropagation();
-      if(!pendingResumeState) return;
-      const state = pendingResumeState;
-      closeResumeModal();
-      startQuiz(state);
-    }
-
-    function handleStartFreshClick(e){
-      e.preventDefault();
-      e.stopPropagation();
-      closeResumeModal();
-      clearState();
-      startQuiz();
-    }
-
-    // Attach modal listeners with explicit event control
-    resumeBtnEl.addEventListener('click', handleResumeClick, true);
-    startFreshBtnEl.addEventListener('click', handleStartFreshClick, true);
-    if(closeResumeBtnEl) closeResumeBtnEl.addEventListener('click', handleStartFreshClick, true);
-
-    // Overlay click handling
-    resumeModalEl.addEventListener('click', (e)=>{
-      if(e.target === resumeModalEl){
-        e.preventDefault();
-        e.stopPropagation();
-        handleStartFreshClick(e);
-      }
-    }, true);
-
-    // Keyboard escape handling
-    document.addEventListener('keydown', (e)=>{
-      if(e.key === 'Escape' && !resumeModalEl.classList.contains('hidden')){
-        e.preventDefault();
-        e.stopPropagation();
-        handleStartFreshClick(e);
-      }
-    }, true);
 
     // ── Render a question ──────────────────────────────────────────────────
     function showQuestion(i){
@@ -333,6 +276,7 @@
       if(i === qList.length-1) document.getElementById('skipQBtn').classList.add('hidden');
 
       saveState();
+      renderHistory();
     }
 
     // ── Submit answer ──────────────────────────────────────────────────────
@@ -359,6 +303,7 @@
       document.getElementById('explanation').classList.remove('hidden');
       responses.push({idx, given:inputs, correct:q.answers, skipped:false});
       saveState();
+      renderHistory();
 
       document.getElementById('submitBtn').classList.add('hidden');
       document.getElementById('skipQBtn').classList.add('hidden');
@@ -372,6 +317,7 @@
         answered.add(idx);
         responses.push({idx, given:[], correct:qList[idx].answers, skipped:true});
         saveState();
+        renderHistory();
       }
       if(idx < qList.length-1) showQuestion(idx+1);
       else finishQuiz();
@@ -406,6 +352,7 @@
         }
       }
       saveState();
+      renderHistory();
 
       document.getElementById('skipInput').value = '';
       showQuestion(target);
@@ -445,6 +392,42 @@
       });
     });
 
+    // ── Jump history rendering ─────────────────────────────────────────────
+    function renderHistory(){
+      const container = document.getElementById('jumpHistory');
+      if(!container) return;
+      container.innerHTML = '';
+
+      // Build a map of events by question index for quick lookup (latest wins)
+      const eventsByIndex = new Map();
+      for(const ev of responses){ eventsByIndex.set(ev.idx, ev); }
+
+      // Show last N questions (we'll show up to qList.length but keep layout reasonable)
+      const maxShow = Math.min(qList.length, 30);
+      // We'll display a compact series of question badges: answered, skipped, current, or unanswered
+      for(let i=0;i<qList.length && i<maxShow;i++){
+        const ev = eventsByIndex.get(i);
+        const item = document.createElement('div');
+        item.className = 'hist-item';
+        if(i===idx) item.classList.add('hist-current');
+        else if(ev && ev.skipped) item.classList.add('hist-skipped');
+        else if(ev && !ev.skipped) item.classList.add('hist-answered');
+
+        const dot = document.createElement('span'); dot.className='dot';
+        const label = document.createElement('span'); label.textContent = `Q${i+1}`;
+        item.appendChild(dot); item.appendChild(label);
+        // click to jump to that question
+        item.addEventListener('click', ()=>{ showQuestion(i); });
+        container.appendChild(item);
+      }
+
+      // If there are more questions than shown, indicate remaining
+      if(qList.length > maxShow){
+        const more = document.createElement('div'); more.style.marginLeft='8px'; more.style.color='#666'; more.textContent = `+${qList.length-maxShow} more`;
+        container.appendChild(more);
+      }
+    }
+
     // ── Boot ───────────────────────────────────────────────────────────────
     function startQuiz(resumeState = null){
       document.getElementById('loading').classList.add('hidden');
@@ -468,13 +451,8 @@
     loadAll().then(()=>{
       if(qList.length===0){ document.getElementById('loading').textContent='No questions found.'; return; }
 
-      const savedState = loadState();
-      if(savedState && Date.now() - savedState.timestamp < 7 * 24 * 60 * 60 * 1000){  // 7 days
-        // Show resume modal using centralized handlers
-        openResumeModal(savedState);
-      } else {
-        startQuiz();
-      }
+      // Do not prompt to resume — modal removed. Start quiz immediately.
+      startQuiz();
     }).catch(err=>{ document.getElementById('loading').textContent='Failed to load questions.'; console.error(err); });
 
   })();
